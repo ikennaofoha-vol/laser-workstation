@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laser Workstation - V2.1</title>
+    <title>Laser Workstation - V2.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -14,7 +14,6 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- CONFIGURATION ---
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUnrzvMhU6r6vfNDCibs9_Cdhu1Y8vV7EBwfk8gdzQJi_xJWYVYdARlTQZD1JYHkt3qg/exec";
 
         const { useState, useEffect, useMemo } = React;
@@ -44,23 +43,13 @@
                     try {
                         const response = await fetch(GOOGLE_SCRIPT_URL);
                         const data = await response.json();
-                        
                         setUi(data.uiConfig || {});
-                        
-                        // Safety: Filter materials and ensure we have at least one
                         const mats = data.materials || [];
                         const conductive = mats.filter(m => m.category === 'Conductive');
                         const substrate = mats.filter(m => m.category === 'Substrate');
-                        
-                        setLibrary({ 
-                            conductive, 
-                            substrate, 
-                            laserSources: data.laserSources || [] 
-                        });
-
+                        setLibrary({ conductive, substrate, laserSources: data.laserSources || [] });
                         if (conductive.length > 0) setS1Material(conductive[0]);
                         if (substrate.length > 0) setS2Material(substrate[0]);
-                        
                         setLoading(false);
                     } catch (err) { 
                         console.error("Initialization failed:", err);
@@ -73,13 +62,11 @@
             const results = useMemo(() => {
                 if (!s1Material || !s2Material) return null;
                 
-                // Safety: Prevent division by zero
                 const safeFreq = params.freq || 1;
                 const safePulse = params.pulseWidth || 1;
                 const safeSpot = params.spotSize || 1;
                 const safeDepth = s2Material.depth || 1;
 
-                // Intensity Calculations
                 const pulseEnergy = params.avgPower / safeFreq;
                 const peakPower = pulseEnergy / (safePulse * 1e-9);
                 const area = Math.PI * Math.pow((safeSpot / 10000) / 2, 2);
@@ -94,13 +81,31 @@
                 const s1Eff = rawIntensity * getAbs(s1Material);
                 const s2Eff = rawIntensity * getAbs(s2Material);
 
-                // Pass Estimation (Thickness / Material depth)
                 const s2Passes = s2Eff >= s2Material.threshold 
                     ? Math.ceil((params.thickness * 1000) / safeDepth) 
                     : Infinity;
 
-                // Overlap: (1 - (dist / spot))
                 const overlap = (1 - ((params.speed / safeFreq) / (safeSpot / 1000))) * 100;
+
+                // STATUS ENGINE LOGIC
+                let statusMsg = "READY";
+                let statusColor = "text-emerald-500";
+                
+                if (s1Eff >= s1Material.threshold && s2Eff < s2Material.threshold) {
+                    statusMsg = "ISO-MODE (Safe for PCB Traces)";
+                    statusColor = "text-blue-400";
+                } else if (s1Eff >= s1Material.threshold && s2Eff >= s2Material.threshold) {
+                    statusMsg = "PENETRATION-MODE (Cut Through)";
+                    statusColor = "text-emerald-500 font-black";
+                } else if (s1Eff < s1Material.threshold) {
+                    statusMsg = "UNDERPOWERED (Marking Only)";
+                    statusColor = "text-red-500";
+                }
+                
+                if (overlap < 0) {
+                    statusMsg = "GAPPING DETECTED (Move Slower)";
+                    statusColor = "text-orange-500 animate-pulse";
+                }
 
                 return {
                     peakPower: (peakPower / 1000).toFixed(2),
@@ -110,7 +115,9 @@
                     s1Pass: s1Eff >= s1Material.threshold,
                     s2Pass: s2Eff >= s2Material.threshold,
                     s2Passes,
-                    overlap: overlap.toFixed(1)
+                    overlap: overlap.toFixed(1),
+                    statusMsg,
+                    statusColor
                 };
             }, [params, s1Material, s2Material]);
 
@@ -131,27 +138,27 @@
                             mode: "Advanced_Workstation"
                         })
                     });
-                    alert("Test run recorded successfully!");
+                    alert("Analysis Logged.");
                 } catch (e) { console.error(e); }
                 setIsSaving(false);
             };
 
             if (loading) return (
                 <div className="h-screen flex items-center justify-center bg-black text-emerald-500 font-mono text-xs tracking-[0.5em] animate-pulse">
-                    INITIALIZING CORE...
+                    BOOTING WORKSTATION...
                 </div>
             );
 
             return (
-                <div className="min-h-screen p-4 md:p-8">
+                <div className="min-h-screen p-4 md:p-8 bg-[#050505]">
                     <div className="max-w-7xl mx-auto">
-                        <header className="flex justify-between items-center mb-10 pb-6 border-b border-white/5">
+                        <header className="flex flex-col md:flex-row justify-between items-center mb-10 pb-6 border-b border-white/5 gap-4 text-center md:text-left">
                             <div>
-                                <h1 className="text-3xl font-black text-white tracking-tighter italic uppercase">{ui.main_title || 'Laser4You'}</h1>
+                                <h1 className="text-4xl font-black text-white tracking-tighter italic uppercase">{ui.main_title || 'Laser4You'}</h1>
                                 <p className="text-neutral-500 text-[10px] font-bold tracking-widest uppercase mt-1">{ui.main_subhead || 'Workstation'}</p>
                             </div>
-                            <div className="text-emerald-500 bg-emerald-500/10 px-4 py-1.5 rounded-full border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest">
-                                Online
+                            <div className={`px-6 py-2 rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest ${results?.statusColor}`}>
+                                {results?.statusMsg}
                             </div>
                         </header>
 
@@ -219,38 +226,46 @@
                             {/* Outputs */}
                             <div className="lg:col-span-8 space-y-8">
                                 <div className="bg-neutral-900/50 border border-white/5 rounded-[3rem] p-10 relative overflow-hidden">
-                                    <p className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-4">Effective Output Intensity</p>
+                                    <p className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-4">Effective Output Intensity (at Focus)</p>
                                     <div className="flex items-baseline gap-4 mb-10">
                                         <span className="text-[120px] font-black text-white leading-none tracking-tighter tabular-nums">{results?.rawIntensity}</span>
                                         <span className="text-2xl text-neutral-700 italic font-bold">GW/cm²</span>
                                     </div>
                                     
-                                    <div className="grid grid-cols-3 gap-10 border-t border-white/5 pt-10">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-10 border-t border-white/5 pt-10 text-center md:text-left">
                                         <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Peak Power</p><p className="text-2xl font-black text-white">{results?.peakPower} kW</p></div>
-                                        <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Pulse Overlap</p><p className={`text-2xl font-black ${results?.overlap < 20 || results?.overlap > 85 ? 'text-orange-500' : 'text-emerald-500'}`}>{results?.overlap}%</p></div>
-                                        <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Status</p><p className="text-xs font-black text-emerald-500 uppercase tracking-widest pt-2">Calculating...</p></div>
+                                        <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Pulse Overlap</p><p className={`text-2xl font-black ${results?.overlap < 10 || results?.overlap > 90 ? 'text-orange-500' : 'text-emerald-500'}`}>{results?.overlap}%</p></div>
+                                        <div className="col-span-2 md:col-span-1 border-t md:border-t-0 border-white/5 pt-4 md:pt-0"><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Process Status</p><p className={`text-[10px] font-black uppercase tracking-widest pt-2 ${results?.statusColor}`}>{results?.statusMsg}</p></div>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     {/* Stage 1 */}
                                     <div className={`p-8 rounded-[2.5rem] border-2 transition-all ${results?.s1Pass ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                        <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-6">Conductive Ablation</h3>
+                                        <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-6">Stage 1: Conductive Ablation</h3>
                                         <select value={s1Material?.name} onChange={e => setS1Material(library.conductive.find(m => m.name === e.target.value))} className="bg-transparent text-xl font-black text-white outline-none w-full mb-2">
                                             {library.conductive.map(m => <option key={m.name} value={m.name} className="bg-neutral-900">{m.name}</option>)}
                                         </select>
-                                        <p className={`text-3xl font-black ${results?.s1Pass ? 'text-emerald-400' : 'text-red-500'}`}>{results?.s1Intensity} <span className="text-xs opacity-50">GW/cm²</span></p>
+                                        <div className="flex justify-between items-baseline">
+                                            <p className={`text-3xl font-black ${results?.s1Pass ? 'text-emerald-400' : 'text-red-500'}`}>{results?.s1Intensity}</p>
+                                            <p className="text-[10px] text-neutral-600 uppercase font-bold">Absorbed GW/cm²</p>
+                                        </div>
+                                        <p className="text-[10px] text-neutral-500 mt-2 italic">Threshold: {s1Material?.threshold} GW/cm²</p>
                                     </div>
 
                                     {/* Stage 2 */}
                                     <div className={`p-8 rounded-[2.5rem] border-2 transition-all ${results?.s2Pass ? 'bg-cyan-500/5 border-cyan-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                        <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-6">Substrate Penetration</h3>
+                                        <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-6">Stage 2: Substrate Penetration</h3>
                                         <select value={s2Material?.name} onChange={e => setS2Material(library.substrate.find(m => m.name === e.target.value))} className="bg-transparent text-xl font-black text-white outline-none w-full mb-2">
                                             {library.substrate.map(m => <option key={m.name} value={m.name} className="bg-neutral-900">{m.name}</option>)}
                                         </select>
-                                        <div className="flex justify-between items-end">
-                                            <div><p className="text-[10px] text-neutral-500 font-bold mb-1 uppercase tracking-widest">Req. Passes</p><p className={`text-4xl font-black ${results?.s2Pass ? 'text-cyan-400' : 'text-red-500'}`}>{results?.s2Passes === Infinity ? 'FAIL' : results?.s2Passes}</p></div>
-                                            <p className="text-[10px] font-mono text-neutral-600 mb-1">Bit: {s2Material?.depth}µm/p</p>
+                                        <div className="flex justify-between items-end mb-4">
+                                            <div><p className="text-[10px] text-neutral-500 font-bold mb-1 uppercase tracking-widest">Absorbed Intensity</p><p className={`text-2xl font-black ${results?.s2Pass ? 'text-cyan-400' : 'text-red-500'}`}>{results?.s2Intensity} <span className="text-[10px] opacity-30 italic">GW/cm²</span></p></div>
+                                            <p className="text-[10px] font-mono text-neutral-600 mb-1">Thr: {s2Material?.threshold}</p>
+                                        </div>
+                                        <div className="pt-4 border-t border-white/5 flex justify-between items-center">
+                                            <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Req. Passes</p><p className="text-2xl font-black text-white">{results?.s2Passes === Infinity ? 'FAIL' : results?.s2Passes}</p></div>
+                                            <p className="text-[10px] text-neutral-600 font-bold italic">{s2Material?.depth}µm / pass</p>
                                         </div>
                                     </div>
                                 </div>
