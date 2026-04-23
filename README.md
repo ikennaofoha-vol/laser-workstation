@@ -96,6 +96,9 @@ xTool 2W IR
 💻 Tech Stack
 
 Frontend: React (via CDN)
+
 Styling: Tailwind CSS
+
 Icons: Lucide-React
+
 Database: Google Sheets via Apps Script API
