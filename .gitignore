@@ -1,0 +1,19 @@
+Dependency directories (if you ever use npm)
+node_modules/
+
+OS metadata
+.DS_Store
+Thumbs.db
+
+Firebase logs and config
+firebase-debug.log*
+.firebase/
+.firebaserc
+
+Environment variables (if you ever use them)
+.env
+.env.local
+
+Build outputs
+dist/
+build/
