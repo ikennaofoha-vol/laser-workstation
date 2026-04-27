@@ -8,7 +8,8 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Using lucide-react specifically for browser-based React -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body class="bg-[#050505] text-gray-200 antialiased font-sans">
     <div id="root"></div>
@@ -18,7 +19,12 @@
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWPaunxMuilH4d1iid5V-y6xKj0XkqG-QZTlB4HZTqzWWbglbtZr0Gtlaa0zf1xWkNRg/exec";
 
         const { useState, useEffect, useMemo } = React;
-        const { Zap, Target, Save, Activity, Database, CheckCircle, AlertTriangle, Info, Maximize2, Scissors, MoveHorizontal } = lucide;
+
+        // Simple Icon Component Helper to avoid library crashes
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
 
         // --- SUB-COMPONENT: OEM BUILDER PAGE ---
         const OEMBuilder = ({ data }) => {
@@ -34,7 +40,7 @@
                 <div className="bg-[#0f0f0f] border border-white/5 rounded-[2rem] p-6 space-y-4">
                     <h3 className={`text-sm font-black uppercase tracking-[0.3em] mb-6 ${color}`}>{title}</h3>
                     {categories.map(cat => {
-                        const parts = data.filter(p => p.category === cat);
+                        const parts = data?.filter(p => p.category === cat) || [];
                         const selected = build[cat];
                         return (
                             <div key={cat} className="space-y-2">
@@ -49,8 +55,8 @@
                                         {parts.map(p => <option key={p.name} value={p.name} className="bg-neutral-900">{p.name} (${p.price})</option>)}
                                     </select>
                                     {selected && (
-                                        <button onClick={() => setActiveDetail(selected)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
-                                            <Info size={14} className="text-blue-400" />
+                                        <button onClick={() => setActiveDetail(selected)} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors flex items-center justify-center">
+                                            <Icon name="info" size={14} className="text-blue-400" />
                                         </button>
                                     )}
                                 </div>
@@ -83,7 +89,9 @@
                                         <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">{activeDetail.category}</p>
                                         <h2 className="text-2xl font-black text-white leading-tight">{activeDetail.name}</h2>
                                     </div>
-                                    <button onClick={() => setActiveDetail(null)} className="text-neutral-500 hover:text-white transition-colors"><Maximize2 size={20}/></button>
+                                    <button onClick={() => setActiveDetail(null)} className="text-neutral-500 hover:text-white transition-colors">
+                                        <Icon name="maximize-2" size={20} />
+                                    </button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 mb-8">
                                     <div className="bg-white/5 p-4 rounded-2xl border border-white/5"><p className="text-[10px] text-neutral-500 uppercase font-bold mb-1">Standard Price</p><p className="text-xl font-black text-white">${activeDetail.price}</p></div>
@@ -108,7 +116,6 @@
             const [ui, setUi] = useState({});
             const [library, setLibrary] = useState({ conductive: [], substrate: [], laserSources: [], oemLibrary: [] });
             
-            // Simulator State
             const [params, setParams] = useState({
                 name: "Custom Source",
                 wavelength: 1064,
@@ -148,7 +155,6 @@
                 init();
             }, []);
 
-            // --- SIMULATOR PHYSICS ENGINE ---
             const results = useMemo(() => {
                 if (!s1Material || !s2Material) return null;
                 const safeFreq = params.freq || 1;
@@ -218,11 +224,11 @@
                         body: JSON.stringify({
                             ...params,
                             s1Material: s1Material.name,
-                            s1Intensity: results.s1Intensity,
+                            s1Intensity: results?.s1Intensity,
                             s2Material: s2Material.name,
-                            s2Intensity: results.s2Intensity,
+                            s2Intensity: results?.s2Intensity,
                             thickness: params.thickness,
-                            passes: results.s2Passes === Infinity ? "FAIL" : results.s2Passes,
+                            passes: results?.s2Passes === Infinity ? "FAIL" : results?.s2Passes,
                             mode: "Combined_Suite"
                         })
                     });
@@ -261,8 +267,8 @@
                                         <h1 className="text-4xl font-black text-white tracking-tighter italic uppercase">{ui.main_title || 'Laser Engineering'}</h1>
                                         <p className="text-neutral-500 text-[10px] font-bold tracking-widest uppercase mt-1">{ui.main_subhead || 'Workstation'}</p>
                                     </div>
-                                    <div className={`px-6 py-2 rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest ${results?.statusColor}`}>
-                                        {results?.statusMsg}
+                                    <div className={`px-6 py-2 rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest ${results?.statusColor || 'text-neutral-500'}`}>
+                                        {results?.statusMsg || 'CALCULATING...'}
                                     </div>
                                 </header>
 
@@ -331,17 +337,17 @@
                                     <div className="lg:col-span-8 space-y-8">
                                         <div className="bg-neutral-900/50 border border-white/5 rounded-[3rem] p-10 relative overflow-hidden group">
                                             <div className="absolute -right-20 -top-20 opacity-5 group-hover:rotate-12 transition-transform duration-1000">
-                                                <Zap size={400} />
+                                                <Icon name="zap" size={400} />
                                             </div>
                                             <p className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] mb-4">Effective Output Intensity</p>
                                             <div className="flex items-baseline gap-4 mb-10">
-                                                <span className="text-[110px] font-black text-white leading-none tracking-tighter tabular-nums">{results?.rawIntensity}</span>
+                                                <span className="text-[110px] font-black text-white leading-none tracking-tighter tabular-nums">{results?.rawIntensity || '0.000'}</span>
                                                 <span className="text-2xl text-neutral-700 italic font-bold">GW/cm²</span>
                                             </div>
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-10 border-t border-white/5 pt-10 text-center md:text-left">
-                                                <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Peak Power</p><p className="text-2xl font-black text-white">{results?.peakPower} kW</p></div>
-                                                <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Pulse Overlap</p><p className={`text-2xl font-black ${results?.overlap < 10 || results?.overlap > 90 ? 'text-orange-500' : 'text-emerald-500'}`}>{results?.overlap}%</p></div>
-                                                <div className="col-span-2 md:col-span-1 border-t md:border-t-0 border-white/5 pt-4 md:pt-0"><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Pulse Energy</p><p className="text-xl font-black text-white">{(params.avgPower/params.freq*1000000).toFixed(1)} µJ</p></div>
+                                                <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Peak Power</p><p className="text-2xl font-black text-white">{results?.peakPower || '0.00'} kW</p></div>
+                                                <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Pulse Overlap</p><p className={`text-2xl font-black ${(results?.overlap < 10 || results?.overlap > 90) ? 'text-orange-500' : 'text-emerald-500'}`}>{results?.overlap || '0.0'}%</p></div>
+                                                <div className="col-span-2 md:col-span-1 border-t md:border-t-0 border-white/5 pt-4 md:pt-0"><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Pulse Energy</p><p className="text-xl font-black text-white">{((params.avgPower/params.freq)*1000000).toFixed(1)} µJ</p></div>
                                             </div>
                                         </div>
 
@@ -352,7 +358,7 @@
                                                     {library.conductive.map(m => <option key={m.name} value={m.name} className="bg-neutral-900 font-sans">{m.name}</option>)}
                                                 </select>
                                                 <div className="flex justify-between items-baseline">
-                                                    <p className={`text-3xl font-black ${results?.s1Pass ? 'text-emerald-400' : 'text-red-500'}`}>{results?.s1Intensity}</p>
+                                                    <p className={`text-3xl font-black ${results?.s1Pass ? 'text-emerald-400' : 'text-red-500'}`}>{results?.s1Intensity || '0.000'}</p>
                                                     <p className="text-[10px] text-neutral-600 uppercase font-bold">Absorbed GW/cm²</p>
                                                 </div>
                                             </div>
@@ -362,18 +368,18 @@
                                                     {library.substrate.map(m => <option key={m.name} value={m.name} className="bg-neutral-900 font-sans">{m.name}</option>)}
                                                 </select>
                                                 <div className="flex justify-between items-end mb-4">
-                                                    <div><p className="text-[10px] text-neutral-500 font-bold mb-1 uppercase tracking-widest">Absorbed Intensity</p><p className={`text-2xl font-black ${results?.s2Pass ? 'text-cyan-400' : 'text-red-500'}`}>{results?.s2Intensity}</p></div>
+                                                    <div><p className="text-[10px] text-neutral-500 font-bold mb-1 uppercase tracking-widest">Absorbed Intensity</p><p className={`text-2xl font-black ${results?.s2Pass ? 'text-cyan-400' : 'text-red-500'}`}>{results?.s2Intensity || '0.000'}</p></div>
                                                     <p className="text-[10px] font-mono text-neutral-600 mb-1">Thr: {s2Material?.threshold}</p>
                                                 </div>
                                                 <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-                                                    <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Req. Passes</p><p className="text-2xl font-black text-white">{results?.s2Passes === Infinity ? 'FAIL' : results?.s2Passes}</p></div>
+                                                    <div><p className="text-[10px] text-neutral-500 font-bold uppercase mb-1">Req. Passes</p><p className="text-2xl font-black text-white">{results?.s2Passes === Infinity ? 'FAIL' : (results?.s2Passes || '0')}</p></div>
                                                     <p className="text-[10px] text-neutral-600 font-bold italic">{s2Material?.depth}µm/pass</p>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <button onClick={handleSave} disabled={isSaving} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-900 py-6 rounded-[2.5rem] text-white font-black text-[10px] uppercase tracking-[0.5em] transition-all shadow-2xl active:scale-95 disabled:cursor-not-allowed">
-                                            {isSaving ? <Activity className="animate-spin inline mr-2" size={14} /> : <Save className="inline mr-2" size={14} />}
+                                            {isSaving ? <Icon name="activity" size={14} className="animate-spin inline mr-2" /> : <Icon name="save" size={14} className="inline mr-2" />}
                                             {isSaving ? "TRANSMITTING TO LOGS..." : ui.btn_save || 'SYNC TO CLAD_LOGS'}
                                         </button>
                                     </div>
